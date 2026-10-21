@@ -22,6 +22,7 @@ Standard-Spracherkennungen (wie Siri, Google Voice oder unmodifizierte ASR-Model
 * ✂️ **Automatische Aufbereitung & Qualitätsprüfung:** Stille am Anfang/Ende wird entfernt (mit 300 ms Puffer); zu kurze, zu leise oder übersteuerte Aufnahmen werden gemeldet.
 * 📊 **Echtzeit-Audiovisualisierung:** Visualisierung der Mikrofon-Wellenform zur visuellen Kontrolle der Aufnahme.
 * 📚 **Dynamischer Wortkatalog:** Vordefinierte Kernwörter, Alltagssätze und Laute mit Emojis (für Kinder, die noch nicht lesen) – erweiterbar um eigene Phrasen. Pro Phrase werden mehrere Wiederholungen gesammelt (Standard: 3).
+* 🎯 **Intelligente Reihenfolge:** Standardmäßig zeigt „Weiter“ als Nächstes das Wort mit den **wenigsten Aufnahmen** des aktuellen Sprechers (bei Gleichstand in Katalogreihenfolge). Alternativ lässt sich die feste Katalogreihenfolge wählen; die Einstellung wird gemerkt.
 * 🏆 **Kindgerechte Gamification:** Sterne-Belohnungen und visueller Jubel nach jeder gelungenen Aufnahme.
 * 👨‍👩‍👧 **Erwachsenen-Prüfung:** Nach jeder Aufnahme: Anhören, Verwerfen, Notiz (z. B. „sagt *Wassa*“).
 * 👤 **Multi-Sprecher & Session-Management:** Anonymisierte Sprecher-IDs mit Einwilligung (inkl. Zeitstempel) und automatische Sessions.
@@ -94,6 +95,10 @@ Der Workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) test
 3. Die App ist danach unter `https://dremonaut.github.io/echokiz/` erreichbar.
 4. Auf dem Handy öffnen und **zum Home-Bildschirm hinzufügen** (iOS: Teilen → „Zum Home-Bildschirm“). Das verringert das Risiko, dass Safari die Daten nach längerer Inaktivität löscht.
 
+**Fehler „Get Pages site failed / Not Found“:** Unter **Settings → Pages** prüfen, ob Pages aktiviert und als Quelle **GitHub Actions** ausgewählt ist. Danach unter **Actions → Deploy to GitHub Pages → Run workflow** erneut starten. Bei privaten Repositories muss der GitHub-Tarif Pages für private Repositories unterstützen; ein privates Repository macht die veröffentlichte Website nicht automatisch privat. Pages wird vom Workflow bewusst nicht automatisch aktiviert.
+
+Der Workflow verwendet Ubuntu 24.04 und Actions mit Node-24-Laufzeit. Diese Action-Laufzeit ist unabhängig von der Node-Version, die `setup-node` zum Bauen der App installiert.
+
 Auf GitHub Pages liegt nur der Programmcode – die Aufnahmen verlassen das Handy nicht. Der ZIP-Export landet im Download-Ordner des Handys und kann von dort auf den PC übertragen werden.
 
 ### Zum Testen während der Entwicklung: Tunnel
@@ -128,6 +133,7 @@ echokiz/
     │   ├── storage-idb.ts         # IndexedDB-Implementierung
     │   ├── export.ts              # ZIP-Export, metadata.csv
     │   ├── catalog.ts             # Wortkatalog
+    │   ├── priority.ts            # Auswahl des nächsten Wortes (wenig aufgenommen zuerst)
     │   ├── device.ts              # Speicherstatus, Wake Lock, Download
     │   └── *.test.ts              # Unit-Tests
     ├── stores/app.ts              # Pinia-Store (Sprecher, Session, Aufnahmen)

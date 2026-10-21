@@ -4,13 +4,19 @@ import { RouterLink } from 'vue-router'
 import WaveformCanvas from '../components/WaveformCanvas.vue'
 import { CATEGORIES } from '../core/catalog'
 import { keepScreenAwake } from '../core/device'
+import { neighborPhrase, pickNextPhrase } from '../core/priority'
 import { analyzeQuality, QUALITY_MESSAGES, trimSilence, type QualityReport } from '../core/quality'
 import { Recorder } from '../core/recorder'
+import type { Phrase } from '../core/types'
 import { encodeWav } from '../core/wav'
 import { usePlayback } from '../composables/usePlayback'
 import { REPETITIONS_PER_PHRASE, useAppStore } from '../stores/app'
 
 type Status = 'idle' | 'recording' | 'processing' | 'review'
+type OrderMode = 'smart' | 'catalog'
+
+const ORDER_KEY = 'echokiz.order'
+const MAX_HISTORY = 50
 
 const app = useAppStore()
 const { playingId, play, stop: stopPlayback } = usePlayback()
@@ -20,7 +26,10 @@ const analyser = shallowRef<AnalyserNode>()
 const status = ref<Status>('idle')
 const error = ref<string>()
 const category = ref<string>('Alle')
-const index = ref(0)
+// The current phrase is tracked by ID (not list position) so it never jumps when counts change.
+const currentId = ref<string>()
+const order = ref<OrderMode>(localStorage.getItem(ORDER_KEY) === 'catalog' ? 'catalog' : 'smart')
+const history: string[] = []
 const stars = ref(0)
 const celebrate = ref(false)
 const lastId = ref<number>()
@@ -36,13 +45,30 @@ const categories = computed(() => {
 const phrases = computed(() =>
   category.value === 'Alle' ? app.phrases : app.phrases.filter((p) => p.category === category.value),
 )
-const phrase = computed(() => phrases.value[Math.min(index.value, phrases.value.length - 1)])
+const phrase = computed(() => phrases.value.find((p) => p.id === currentId.value))
 const count = computed(() => (phrase.value ? (app.countsByPhrase.get(phrase.value.id) ?? 0) : 0))
 
-watch(category, () => {
-  index.value = 0
-  resetReview()
+function selectInitialPhrase() {
+  history.length = 0
+  const first = order.value === 'smart' ? pickNextPhrase(phrases.value, app.countsByPhrase) : phrases.value[0]
+  currentId.value = first?.id
+}
+
+watch(
+  [category, () => app.currentSpeakerId],
+  () => {
+    selectInitialPhrase()
+    resetReview()
+  },
+  { immediate: true },
+)
+
+// A custom phrase may have been removed while it was selected.
+watch(phrases, () => {
+  if (!phrase.value) selectInitialPhrase()
 })
+
+watch(order, (mode) => localStorage.setItem(ORDER_KEY, mode))
 
 onMounted(async () => {
   releaseWakeLock = await keepScreenAwake()
@@ -124,9 +150,24 @@ async function saveNotes() {
   if (lastId.value !== undefined) await app.updateRecordingNotes(lastId.value, notes.value.trim())
 }
 
-function go(delta: number) {
-  const n = phrases.value.length
-  index.value = (index.value + delta + n) % n
+function go(delta: 1 | -1) {
+  const list = phrases.value
+  const from = currentId.value
+  if (!from || !list.length) return
+
+  let target: Phrase | undefined
+  if (delta === 1) {
+    target = order.value === 'smart' ? pickNextPhrase(list, app.countsByPhrase, from) : neighborPhrase(list, from, 1)
+    if (order.value === 'smart') history.push(from)
+    if (history.length > MAX_HISTORY) history.shift()
+  } else if (order.value === 'smart') {
+    // Step back through the phrases actually visited, skipping ones that no longer exist.
+    while (history.length && !target) target = list.find((p) => p.id === history.pop())
+    target ??= neighborPhrase(list, from, -1)
+  } else {
+    target = neighborPhrase(list, from, -1)
+  }
+  currentId.value = target?.id
   resetReview()
 }
 </script>
@@ -142,6 +183,10 @@ function go(delta: number) {
     <div class="toolbar row">
       <select v-model="category" aria-label="Kategorie">
         <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+      </select>
+      <select v-model="order" aria-label="Reihenfolge" :disabled="status === 'recording'">
+        <option value="smart">Wenig aufgenommen zuerst</option>
+        <option value="catalog">Reihenfolge im Katalog</option>
       </select>
       <span class="stars" :class="{ pop: celebrate }" aria-label="Sterne">⭐ {{ stars }}</span>
     </div>
