@@ -80,6 +80,10 @@ export const DEFAULT_PHRASES: Phrase[] = [
   // Personen (eigene Namen von Geschwistern, Freunden usw. am besten unter „Katalog“ ergänzen)
   { id: 'w-mama', text: 'Mama', category: 'Personen', emoji: '👩' },
   { id: 'w-papa', text: 'Papa', category: 'Personen', emoji: '👨' },
+  { id: 'w-schwester', text: 'Schwester', category: 'Personen', emoji: '�' },
+  { id: 'w-bruder', text: 'Bruder', category: 'Personen', emoji: '👦' },
+  { id: 'w-noel', text: 'Noel', category: 'Personen', emoji: '👦' },
+  { id: 'w-raphi', text: 'Raphi', category: 'Personen', emoji: '👦' },
   { id: 'w-oma', text: 'Oma', category: 'Personen', emoji: '👵' },
   { id: 'w-opa', text: 'Opa', category: 'Personen', emoji: '👴' },
   { id: 's-wo-ist-mama', text: 'Wo ist Mama?', category: 'Personen', emoji: '🔍' },
