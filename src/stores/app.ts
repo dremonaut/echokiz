@@ -109,12 +109,13 @@ export const useAppStore = defineStore('app', () => {
     return id
   }
 
-  async function updateRecordingNotes(id: number, notes: string) {
+  /** Updates the text label of a recording; `phraseId` (and thus the repetition count) stays unchanged. */
+  async function updateRecording(id: number, changes: Partial<Pick<Recording, 'targetText' | 'notes'>>) {
     const recording = await db().getRecording(id)
     if (!recording) return
-    recording.notes = notes
+    Object.assign(recording, changes)
     await db().saveRecording(recording)
-    recordings.value = recordings.value.map((r) => (r.id === id ? { ...r, notes } : r))
+    recordings.value = recordings.value.map((r) => (r.id === id ? { ...r, ...changes } : r))
   }
 
   async function deleteRecording(id: number) {
@@ -158,7 +159,7 @@ export const useAppStore = defineStore('app', () => {
     ensureSession,
     refreshRecordings,
     saveRecording,
-    updateRecordingNotes,
+    updateRecording,
     deleteRecording,
     getWav,
     addPhrase,

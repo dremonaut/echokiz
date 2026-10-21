@@ -35,6 +35,8 @@ const celebrate = ref(false)
 const lastId = ref<number>()
 const lastQuality = ref<QualityReport>()
 const notes = ref('')
+// Text that was actually said; starts as the phrase text and is stored as `targetText` (training label).
+const spokenText = ref('')
 
 let releaseWakeLock: (() => void) | undefined
 
@@ -85,6 +87,7 @@ function resetReview() {
   lastId.value = undefined
   lastQuality.value = undefined
   notes.value = ''
+  spokenText.value = ''
 }
 
 async function toggleRecording() {
@@ -127,6 +130,7 @@ async function finishRecording() {
       wav: encodeWav(samples, result.sampleRate),
     })
     lastQuality.value = quality
+    spokenText.value = phrase.value.text
     status.value = 'review'
     if (quality.ok) {
       stars.value++
@@ -147,7 +151,14 @@ async function discard() {
 }
 
 async function saveNotes() {
-  if (lastId.value !== undefined) await app.updateRecordingNotes(lastId.value, notes.value.trim())
+  if (lastId.value !== undefined) await app.updateRecording(lastId.value, { notes: notes.value.trim() })
+}
+
+async function saveSpokenText() {
+  if (lastId.value === undefined || !phrase.value) return
+  // An empty field falls back to the catalog text so a recording never ends up without a label.
+  spokenText.value = spokenText.value.trim() || phrase.value.text
+  await app.updateRecording(lastId.value, { targetText: spokenText.value })
 }
 
 function go(delta: 1 | -1) {
@@ -242,8 +253,15 @@ function go(delta: 1 | -1) {
         Die Aufnahme wurde trotzdem gespeichert. Ggf. verwerfen und wiederholen.
       </div>
       <label>
-        Notiz (optional, z. B. wie das Kind es tatsächlich gesagt hat)
-        <input v-model="notes" type="text" @change="saveNotes" />
+        Gesagter Text (Training lernt genau diesen Text)
+        <input v-model="spokenText" type="text" autocomplete="off" @change="saveSpokenText" />
+        <span class="hint muted">
+          Nur ändern, wenn das Kind etwas anderes gesagt hat, z. B. „Wasser haben“ statt des ganzen Satzes.
+        </span>
+      </label>
+      <label>
+        Notiz (optional, z. B. Aussprache oder was gemeint war)
+        <input v-model="notes" type="text" autocomplete="off" @change="saveNotes" />
       </label>
       <div class="row">
         <button class="secondary" @click="play(lastId)">{{ playingId === lastId ? '⏸ Stopp' : '▶ Anhören' }}</button>
@@ -372,5 +390,11 @@ function go(delta: 1 | -1) {
 
 .review h2 {
   font-size: 1.1rem;
+}
+
+.hint {
+  display: block;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
 }
 </style>
