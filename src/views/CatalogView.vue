@@ -30,7 +30,10 @@ async function add() {
 <template>
   <section>
     <h1>Wortkatalog</h1>
-    <p class="muted">Vordefinierte Wörter, Sätze und Laute. Eigene Phrasen werden lokal gespeichert.</p>
+    <p class="muted">
+      Vordefinierte Wörter und Sätze für den Alltag sowie Übungen zum S-Laut. Eigene Phrasen (z. B. Namen von
+      Geschwistern, Freunden oder Lieblingsspielzeug) werden lokal gespeichert.
+    </p>
 
     <form class="card" @submit.prevent="add">
       <h2>Eigene Phrase hinzufügen</h2>

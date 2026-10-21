@@ -21,7 +21,7 @@ Standard-Spracherkennungen (wie Siri, Google Voice oder unmodifizierte ASR-Model
 * 🎙️ **In-Browser Audio-Aufnahme:** Direkt im Browser ohne Installation via Web Audio API (`AudioWorklet`). Die Aufnahmen werden direkt als **16-kHz-Mono-WAV** erzeugt – dem Format, das Whisper erwartet – und sind damit unabhängig vom Browser-Codec (WebM/Opus bzw. MP4/AAC bei `MediaRecorder`). Echo-, Rausch- und Pegelautomatik des Browsers sind bewusst deaktiviert, damit atypische Sprache nicht verfälscht wird.
 * ✂️ **Automatische Aufbereitung & Qualitätsprüfung:** Stille am Anfang/Ende wird entfernt (mit 300 ms Puffer); zu kurze, zu leise oder übersteuerte Aufnahmen werden gemeldet.
 * 📊 **Echtzeit-Audiovisualisierung:** Visualisierung der Mikrofon-Wellenform zur visuellen Kontrolle der Aufnahme.
-* 📚 **Dynamischer Wortkatalog:** Vordefinierte Kernwörter, Alltagssätze und Laute mit Emojis (für Kinder, die noch nicht lesen) – erweiterbar um eigene Phrasen. Pro Phrase werden mehrere Wiederholungen gesammelt (Standard: 3).
+* 📚 **Dynamischer Wortkatalog:** Rund 120 vordefinierte Wörter und Sätze mit Emojis (für Kinder, die noch nicht lesen) in den Kategorien Notfall, Körper, Grundbedürfnisse, Signale, Personen, Orte, Aktivitäten, Essen & Trinken, Emotionen sowie **S-Laut** (s am Wortanfang, in der Mitte, am Ende und in Verbindungen wie z, ks, st) – erweiterbar um eigene Phrasen. Pro Phrase werden mehrere Wiederholungen gesammelt (Standard: 3). Der Katalog steht in [`src/core/catalog.ts`](src/core/catalog.ts); IDs bestehender Einträge dürfen nicht für andere Texte wiederverwendet werden.
 * 🎯 **Intelligente Reihenfolge:** Standardmäßig zeigt „Weiter“ als Nächstes das Wort mit den **wenigsten Aufnahmen** des aktuellen Sprechers (bei Gleichstand in Katalogreihenfolge). Alternativ lässt sich die feste Katalogreihenfolge wählen; die Einstellung wird gemerkt.
 * 🏆 **Kindgerechte Gamification:** Sterne-Belohnungen und visueller Jubel nach jeder gelungenen Aufnahme.
 * 👨‍👩‍👧 **Erwachsenen-Prüfung:** Nach jeder Aufnahme: Anhören, Verwerfen, Notiz (z. B. „sagt *Wassa*“).
@@ -198,7 +198,7 @@ echokiz_Kind_01_2026-10-20.zip
 ### `metadata.csv` Schema
 ```csv
 file_name,target_text,category,duration,speaker_id,session_id,timestamp,notes
-"audio/20261020_wasser_kind_01_1.wav","Wasser","Kernwörter",1.85,"Kind_01","Kind_01_Session_01","2026-10-20T19:43:00.000Z","sagt ""Wassa"""
+"audio/20261020_wasser_kind_01_1.wav","Wasser","Grundbedürfnisse",1.85,"Kind_01","Kind_01_Session_01","2026-10-20T19:43:00.000Z","sagt ""Wassa"""
 "audio/20261020_ich_moechte_wasser_kind_01_2.wav","Ich möchte Wasser","Sätze",3.1,"Kind_01","Kind_01_Session_01","2026-10-20T19:45:12.000Z",""
 ```
 
