@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { formatBytes, downloadBlob, getStorageStatus, requestPersistentStorage, type StorageStatus } from '../core/device'
-import { buildDatasetZip } from '../core/export'
+import { buildDatasetZip, exportableRecordings } from '../core/export'
+import { isUnlabeled, resolveLabel, textSourceOf, TEXT_SOURCE_LABELS } from '../core/labeling'
 import type { Recording } from '../core/types'
 import { usePlayback } from '../composables/usePlayback'
 import { useAppStore } from '../stores/app'
@@ -19,6 +20,7 @@ const storageStatus = ref<StorageStatus>()
 const lastExport = ref(localStorage.getItem(LAST_EXPORT_KEY))
 const deleteConfirmation = ref('')
 const pendingDeleteId = ref<number>()
+const drafts = ref<Record<number, string>>({})
 
 const exportOverdue = computed(() => {
   if (!app.recordings.length) return false
@@ -41,12 +43,16 @@ async function exportData(speakerId?: string) {
       db.listSpeakers(),
       db.listSessions(speakerId),
     ])
-    if (!allRecordings.length) {
-      message.value = 'Keine Aufnahmen vorhanden.'
+    const exportable = exportableRecordings(allRecordings as Recording[])
+    const skipped = allRecordings.length - exportable.length
+    if (!exportable.length) {
+      message.value = allRecordings.length
+        ? `Keine exportierbaren Aufnahmen: ${skipped} ohne Text. Bitte unten einen Text ergänzen oder die Aufnahmen löschen.`
+        : 'Keine Aufnahmen vorhanden.'
       return
     }
     const zip = buildDatasetZip({
-      recordings: allRecordings as Recording[],
+      recordings: exportable,
       speakers: speakerId ? speakers.filter((s) => s.id === speakerId) : speakers,
       sessions,
     })
@@ -54,7 +60,7 @@ async function exportData(speakerId?: string) {
     downloadBlob(zip as Uint8Array<ArrayBuffer>, `echokiz_${speakerId ?? 'alle'}_${date}.zip`, 'application/zip')
     lastExport.value = new Date().toISOString()
     localStorage.setItem(LAST_EXPORT_KEY, lastExport.value)
-    message.value = `${allRecordings.length} Aufnahmen exportiert.`
+    message.value = `${exportable.length} Aufnahmen exportiert${skipped ? `, ${skipped} ohne Text übersprungen` : ''}.`
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -74,6 +80,12 @@ async function deleteSpeaker() {
   deleteConfirmation.value = ''
   message.value = `Alle Daten von ${id} wurden gelöscht.`
   storageStatus.value = await getStorageStatus()
+}
+
+async function addText(r: Omit<Recording, 'wav'>) {
+  const label = resolveLabel(drafts.value[r.id!] ?? '', r.predictedText)
+  if (!label.targetText) return
+  await app.updateRecording(r.id!, { targetText: label.targetText, textSource: label.textSource })
 }
 
 async function remove(id: number) {
@@ -96,6 +108,10 @@ async function remove(id: number) {
     </p>
     <p v-if="message" class="alert alert-ok">{{ message }}</p>
     <p v-if="error" class="alert alert-error">{{ error }}</p>
+
+    <p v-if="app.unlabeledCount" class="alert alert-warn">
+      {{ app.unlabeledCount }} Aufnahme(n) ohne Text werden nicht exportiert. Unten einen Text ergänzen oder löschen.
+    </p>
 
     <div class="card">
       <h2>Export (ZIP)</h2>
@@ -140,7 +156,25 @@ async function remove(id: number) {
           </thead>
           <tbody>
             <tr v-for="r in recordings" :key="r.id">
-              <td>{{ r.targetText }}</td>
+              <td>
+                <template v-if="isUnlabeled(r)">
+                  <span class="badge">ohne Text</span>
+                  <form class="row add-text" @submit.prevent="addText(r)">
+                    <input
+                      v-model="drafts[r.id!]"
+                      type="text"
+                      autocomplete="off"
+                      :placeholder="r.predictedText ? `Vorschlag: ${r.predictedText}` : 'Text eingeben'"
+                      aria-label="Text ergänzen"
+                    />
+                    <button type="submit" class="small" :disabled="!(drafts[r.id!] ?? '').trim()">Speichern</button>
+                  </form>
+                </template>
+                <template v-else>
+                  {{ r.targetText }}
+                  <span v-if="textSourceOf(r) !== 'prompted'" class="badge">{{ TEXT_SOURCE_LABELS[textSourceOf(r)] }}</span>
+                </template>
+              </td>
               <td>{{ r.duration.toFixed(1) }} s</td>
               <td>{{ new Date(r.timestamp).toLocaleString('de-DE') }}</td>
               <td class="muted">{{ r.notes }}</td>
@@ -196,5 +230,19 @@ async function remove(id: number) {
 .confirm-input {
   flex: 1;
   min-width: 14rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--muted, inherit);
+}
+
+.add-text {
+  margin-top: 0.35rem;
+  flex-wrap: nowrap;
 }
 </style>

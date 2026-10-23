@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { createCustomPhrase, mergeCatalog } from '../core/catalog'
+import { isUnlabeled } from '../core/labeling'
 import type { EchoKizStorage } from '../core/storage'
 import { createIdbStorage } from '../core/storage-idb'
 import type { Phrase, Recording, Session, Speaker } from '../core/types'
@@ -26,6 +27,7 @@ export const useAppStore = defineStore('app', () => {
     for (const r of recordings.value) counts.set(r.phraseId, (counts.get(r.phraseId) ?? 0) + 1)
     return counts
   })
+  const unlabeledCount = computed(() => recordings.value.filter(isUnlabeled).length)
 
   function db(): EchoKizStorage {
     if (!storage.value) throw new Error('Speicher ist noch nicht bereit')
@@ -109,8 +111,11 @@ export const useAppStore = defineStore('app', () => {
     return id
   }
 
-  /** Updates the text label of a recording; `phraseId` (and thus the repetition count) stays unchanged. */
-  async function updateRecording(id: number, changes: Partial<Pick<Recording, 'targetText' | 'notes'>>) {
+  /** Updates the label and notes of a recording; `phraseId` (and thus the repetition count) stays unchanged. */
+  async function updateRecording(
+    id: number,
+    changes: Partial<Pick<Recording, 'targetText' | 'notes' | 'textSource' | 'predictedText' | 'modelVersion'>>,
+  ) {
     const recording = await db().getRecording(id)
     if (!recording) return
     Object.assign(recording, changes)
@@ -151,6 +156,7 @@ export const useAppStore = defineStore('app', () => {
     currentSession,
     recordings,
     countsByPhrase,
+    unlabeledCount,
     db,
     init,
     addSpeaker,

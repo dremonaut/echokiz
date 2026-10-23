@@ -1,5 +1,6 @@
 import { strToU8, zipSync, type Zippable } from 'fflate'
-import type { Recording, Session, Speaker } from './types'
+import { isUnlabeled, textSourceOf } from './labeling'
+import type { Recording, Session, Speaker, TextSource } from './types'
 
 export interface MetadataRow {
   file_name: string
@@ -10,9 +11,12 @@ export interface MetadataRow {
   session_id: string
   timestamp: string
   notes: string
+  text_source?: TextSource
+  predicted_text?: string
+  model_version?: string
 }
 
-const COLUMNS: (keyof MetadataRow)[] = [
+const BASE_COLUMNS: (keyof MetadataRow)[] = [
   'file_name',
   'target_text',
   'category',
@@ -22,6 +26,7 @@ const COLUMNS: (keyof MetadataRow)[] = [
   'timestamp',
   'notes',
 ]
+const EXTRA_COLUMNS: (keyof MetadataRow)[] = ['text_source', 'predicted_text', 'model_version']
 
 export function slugify(text: string): string {
   return text
@@ -53,7 +58,21 @@ export function toMetadataRow(recording: Recording): MetadataRow {
     session_id: recording.sessionId,
     timestamp: recording.timestamp,
     notes: recording.notes ?? '',
+    text_source: textSourceOf(recording),
+    predicted_text: recording.predictedText ?? '',
+    model_version: recording.modelVersion ?? '',
   }
+}
+
+/** The text source columns are only written if some row needs them, so old-style exports stay unchanged. */
+export function columnsFor(rows: MetadataRow[]): (keyof MetadataRow)[] {
+  const extended = rows.some((row) => row.text_source !== undefined && row.text_source !== 'prompted')
+  return extended ? [...BASE_COLUMNS, ...EXTRA_COLUMNS] : BASE_COLUMNS
+}
+
+/** Recordings without a text (free mode) are not exported. */
+export function exportableRecordings(recordings: Recording[]): Recording[] {
+  return recordings.filter((recording) => !isUnlabeled(recording))
 }
 
 function csvField(value: string | number): string {
@@ -62,8 +81,9 @@ function csvField(value: string | number): string {
 }
 
 export function toCsv(rows: MetadataRow[]): string {
-  const lines = [COLUMNS.join(',')]
-  for (const row of rows) lines.push(COLUMNS.map((c) => csvField(row[c])).join(','))
+  const columns = columnsFor(rows)
+  const lines = [columns.join(',')]
+  for (const row of rows) lines.push(columns.map((c) => csvField(row[c] ?? '')).join(','))
   return lines.join('\n') + '\n'
 }
 
@@ -78,8 +98,10 @@ export interface ExportInput {
  *   metadata.csv, audio/*.wav, echokiz-export.json (full metadata incl. consent, for backup/import).
  */
 export function buildDatasetZip({ recordings, speakers, sessions }: ExportInput): Uint8Array {
-  const sorted = [...recordings].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+  const sorted = exportableRecordings(recordings).sort((a, b) => a.timestamp.localeCompare(b.timestamp))
   const rows = sorted.map(toMetadataRow)
+  const columns = columnsFor(rows)
+  const jsonRows = rows.map((row) => Object.fromEntries(columns.map((c) => [c, row[c]])))
   const files: Zippable = {
     'metadata.csv': strToU8(toCsv(rows)),
     'echokiz-export.json': strToU8(
@@ -90,7 +112,7 @@ export function buildDatasetZip({ recordings, speakers, sessions }: ExportInput)
           exportedAt: new Date().toISOString(),
           speakers,
           sessions,
-          recordings: rows,
+          recordings: jsonRows,
         },
         null,
         2,

@@ -7,6 +7,7 @@ export const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: HomeView },
     { path: '/aufnahme', name: 'record', component: () => import('./views/RecordView.vue') },
+    { path: '/frei', name: 'free', component: () => import('./views/FreeSpeechView.vue') },
     { path: '/katalog', name: 'catalog', component: () => import('./views/CatalogView.vue') },
     { path: '/daten', name: 'data', component: () => import('./views/DataView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/' },

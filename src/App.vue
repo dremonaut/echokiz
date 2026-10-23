@@ -13,6 +13,7 @@ onMounted(() => app.init())
     <nav>
       <RouterLink to="/">Sprecher</RouterLink>
       <RouterLink to="/aufnahme">Aufnahme</RouterLink>
+      <RouterLink to="/frei">Frei sprechen</RouterLink>
       <RouterLink to="/katalog">Katalog</RouterLink>
       <RouterLink to="/daten">Daten</RouterLink>
     </nav>

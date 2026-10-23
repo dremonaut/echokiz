@@ -54,6 +54,23 @@ describe('IndexedDB storage', () => {
     expect(await storage.listRecordings()).toHaveLength(1)
   })
 
+  it('REQ-STO-002/003 stores the optional text source fields and still reads records without them', async () => {
+    const legacyId = await storage.saveRecording(recording('Kind_01', 's1'))
+    const freeId = await storage.saveRecording({
+      ...recording('Kind_01', 's1', ''),
+      phraseId: 'free',
+      textSource: 'corrected',
+      predictedText: 'Wasa',
+      modelVersion: 'run-1',
+    })
+    expect(await storage.getRecording(legacyId)).not.toHaveProperty('textSource')
+    expect(await storage.getRecording(freeId)).toMatchObject({
+      textSource: 'corrected',
+      predictedText: 'Wasa',
+      modelVersion: 'run-1',
+    })
+  })
+
   it('deletes a speaker with all sessions and recordings', async () => {
     const consent = { given: true, timestamp: new Date().toISOString() }
     await storage.saveSpeaker({ id: 'Kind_01', createdAt: consent.timestamp, consent })

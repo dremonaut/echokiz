@@ -25,6 +25,7 @@ Standard-Spracherkennungen (wie Siri, Google Voice oder unmodifizierte ASR-Model
 * 🎯 **Intelligente Reihenfolge:** Standardmäßig zeigt „Weiter“ als Nächstes das Wort mit den **wenigsten Aufnahmen** des aktuellen Sprechers (bei Gleichstand in Katalogreihenfolge). Alternativ lässt sich die feste Katalogreihenfolge wählen; die Einstellung wird gemerkt.
 * 🏆 **Kindgerechte Gamification:** Sterne-Belohnungen und visueller Jubel nach jeder gelungenen Aufnahme.
 * 👨‍👩‍👧 **Erwachsenen-Prüfung:** Nach jeder Aufnahme: Anhören, Verwerfen, **gesagten Text korrigieren** (z. B. „Wasser haben“ statt des Katalogsatzes – das Training lernt genau diesen Text) und optional eine Notiz ergänzen.
+* 🗣️ **Frei sprechen mit Vorhersage:** Unter „Frei sprechen“ spricht das Kind ohne Vorgabe. Auf Knopfdruck („Erkennen lassen“) wird die Aufnahme an den selbst betriebenen Inferenz-Service von `echokiz-whisper` geschickt (nur `https://`) und der erkannte Text angezeigt. Der Erwachsene bestätigt ihn oder tippt, was das Kind gesagt hat – dieser Text wird zum Trainingslabel (`target_text`). Ohne Service lässt sich der Text von Hand eingeben; Aufnahmen ohne Text werden unter „Daten“ als „ohne Text“ geführt und nicht exportiert. Adresse und Token liegen nur auf dem Gerät.
 * 👤 **Multi-Sprecher & Session-Management:** Anonymisierte Sprecher-IDs mit Einwilligung (inkl. Zeitstempel) und automatische Sessions.
 * 🛟 **Persistente lokale Speicherung:** Jede Aufnahme wird sofort in **IndexedDB** gespeichert und überlebt Reloads, Tab-Abstürze und Neustarts. Dauerhafter Speicher wird per `navigator.storage.persist()` angefragt.
 * 💾 **Hugging Face / PyTorch Ready:** 1-Klick-Export als **ZIP** (`metadata.csv` + `audio/*.wav` + `echokiz-export.json`), direkt ladbar mit Hugging Face `datasets` (`audiofolder`).
@@ -119,7 +120,7 @@ echokiz/
 ├── index.html
 ├── vite.config.ts
 ├── .github/workflows/deploy.yml   # Test, Build & Deployment auf GitHub Pages
-└── src/
+├── src/
     ├── main.ts                    # App-Start (Vue, Pinia, Router)
     ├── App.vue                    # Layout & Navigation
     ├── router.ts
@@ -132,6 +133,8 @@ echokiz/
     │   ├── storage.ts             # Speicher-Interface
     │   ├── storage-idb.ts         # IndexedDB-Implementierung
     │   ├── export.ts              # ZIP-Export, metadata.csv
+    │   ├── labeling.ts            # Textquelle (vorgegeben/bestätigt/korrigiert/eingegeben), „ohne Text“
+    │   ├── inference.ts           # Einstellungen & Anfrage an den Inferenz-Service
     │   ├── catalog.ts             # Wortkatalog
     │   ├── priority.ts            # Auswahl des nächsten Wortes (wenig aufgenommen zuerst)
     │   ├── device.ts              # Speicherstatus, Wake Lock, Download
@@ -139,7 +142,10 @@ echokiz/
     ├── stores/app.ts              # Pinia-Store (Sprecher, Session, Aufnahmen)
     ├── composables/               # Wiederverwendbare Vue-Logik (z. B. Wiedergabe)
     ├── components/                # UI-Bausteine (z. B. Wellenform)
-    └── views/                     # Seiten: Sprecher, Aufnahme, Katalog, Daten
+    └── views/                     # Seiten: Sprecher, Aufnahme, Frei sprechen, Katalog, Daten
+└── spec/
+    ├── requirements/              # Anforderungen (maßgeblich bei Abweichungen zu dieser README)
+    └── change_requests/           # Change Requests
 ```
 
 ---
@@ -155,7 +161,8 @@ DB: echokiz (Version 1)
 ├── speakers    key: id          { id: "Kind_01", createdAt, consent: { given, timestamp } }
 ├── sessions    key: id          { id, speakerId, startedAt }                      # Index: speakerId
 ├── recordings  key: id (auto)   { speakerId, sessionId, phraseId, targetText, category, notes,
-│                                  duration, sampleRate, timestamp, device, wav: ArrayBuffer }
+│                                  duration, sampleRate, timestamp, device, wav: ArrayBuffer,
+│                                  textSource?, predictedText?, modelVersion? }
 │                                                                                  # Index: speakerId, sessionId
 └── phrases     key: id          { id: "custom-…", text, category, emoji, custom }  # nur eigene Phrasen
 ```
@@ -204,6 +211,17 @@ file_name,target_text,category,duration,speaker_id,session_id,timestamp,notes
 
 Alle Audiodateien sind **16 kHz, mono, 16 bit PCM**.
 
+Enthält mindestens eine exportierte Aufnahme eine Textquelle außer `prompted`, kommen die Spalten `text_source`, `predicted_text` und `model_version` hinter `notes` dazu (dieselben Schlüssel in `echokiz-export.json`):
+
+```csv
+file_name,target_text,category,duration,speaker_id,session_id,timestamp,notes,text_source,predicted_text,model_version
+"audio/20261020_wasser_kind_01_3.wav","Wasser","Freies Sprechen",1.2,"Kind_01","Kind_01_Session_01","2026-10-20T19:50:00.000Z","","corrected","Wasa","run-1"
+```
+
+* `text_source`: `prompted` (vorgegebene Phrase), `confirmed` (Vorschlag unverändert übernommen), `corrected` (Vorschlag durch eigenen Text ersetzt) oder `manual` (Text ohne Vorschlag eingegeben). `target_text` ist immer der vom Nutzer bestätigte oder eingegebene Text.
+* Ältere Aufnahmen gelten als `prompted`. Ein Export nur mit vorgegebenen Phrasen sieht aus wie bisher.
+* Hinweis: `echokiz-whisper` kennt (Stand CR-002) `prompted`, `confirmed` und `corrected`. Zeilen mit `manual` meldet das Ingest dort als ungültig, bis ein Folge-CR den Wert akzeptiert.
+
 ### Trainingsdaten lokal ablegen
 
 Zum Training das ZIP z. B. nach `dataset/` entpacken. `dataset/`, `*.zip` und `*.wav` stehen in der `.gitignore`: Sprachaufnahmen von Kindern dürfen nicht versehentlich veröffentlicht werden.
@@ -246,7 +264,8 @@ model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-small")
 ## 🔒 Datenschutz & Ethik
 
 Da Sprachdaten von Kindern mit Sprachbeeinträchtigung besonders schützenswerte Gesundheitsdaten (DSGVO Art. 9) darstellen:
-* Es werden **keine Audiodaten** ungefragt an externe Cloud-Server gesendet.
+* Es werden **keine Audiodaten** ungefragt an externe Server gesendet. Ausnahme: Beim Frei sprechen schickt „Erkennen lassen“ die einzelne Aufnahme an die in der App eingetragene `https://`-Adresse (dein eigener Inferenz-Service). Nichts wird automatisch oder im Hintergrund gesendet. Diese Verarbeitung auf dem eigenen PC ist von der aktuellen Einwilligungsformulierung nicht abgedeckt – bei Bedarf in der Einwilligung ergänzen.
+* Adresse und Token des Services liegen **unverschlüsselt** im `localStorage` des Browsers auf dem Gerät und sind nie Teil des Exports.
 * Alle Daten verbleiben bis zum manuellen Export lokal im Browser (IndexedDB) auf dem Gerät.
 * Sprecher-IDs sollten stets **anonymisiert** gewählt werden (z. B. `Kind_01`, `Kind_02`).
 * Aufnahmen nur mit Einwilligung der Erziehungsberechtigten erstellen und weitergeben. Die App speichert die Einwilligung mit Zeitstempel pro Sprecher.
@@ -266,6 +285,8 @@ Da Sprachdaten von Kindern mit Sprachbeeinträchtigung besonders schützenswerte
 - [ ] **Phase 3:** Python Fine-Tuning Skript mit LoRA-Unterstützung (zuerst mit kleiner Datenmenge validieren)
 - [ ] **Phase 4:** Optionales Backup in einen vom Nutzer gewählten Ordner (File System Access API) und PWA/Offline-Installation (`vite-plugin-pwa`)
 - [ ] **Phase 5:** Live-Inferenz App (lokaler Echtzeit-Übersetzer & TTS Vorlesefunktion)
+  - [x] Vorhersage per Service (`echokiz-whisper serve`) beim Frei sprechen mit Bestätigung/Korrektur als Trainingsdaten
+  - [ ] Echtzeit-Übersetzer & TTS Vorlesefunktion
 - [ ] **Phase 6 (nur bei Bedarf):** Eigenes EU-Backend für geteilte Datensätze
 
 ---

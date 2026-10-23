@@ -23,6 +23,13 @@ export interface Phrase {
   custom?: boolean
 }
 
+/** `phraseId` and category of recordings made in free mode (no prompted phrase). */
+export const FREE_PHRASE_ID = 'free'
+export const FREE_CATEGORY = 'Freies Sprechen'
+
+/** Where the `targetText` of a recording came from. Legacy recordings have none and count as `prompted`. */
+export type TextSource = 'prompted' | 'confirmed' | 'corrected' | 'manual'
+
 export interface Recording {
   id?: number
   speakerId: string
@@ -35,6 +42,10 @@ export interface Recording {
   sampleRate: number
   timestamp: string
   device?: string
+  textSource?: TextSource
+  /** Text returned by the inference service; kept even if the user corrected it. */
+  predictedText?: string
+  modelVersion?: string
   /** 16-bit PCM WAV file content. Stored as ArrayBuffer for maximum browser compatibility. */
   wav: ArrayBuffer
 }
