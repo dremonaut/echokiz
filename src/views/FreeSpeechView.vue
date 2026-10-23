@@ -88,6 +88,8 @@ async function finishRecording() {
   status.value = 'processing'
   try {
     const result = await recorder.stop()
+    // An open microphone switches mobile devices to a call-like audio mode that distorts playback.
+    await recorder.close()
     const samples = trimSilence(result.samples, result.sampleRate)
     const quality = analyzeQuality(samples, result.sampleRate)
     const session = await app.ensureSession()

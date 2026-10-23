@@ -15,7 +15,8 @@ export interface RecordingResult {
 /**
  * Microphone recorder producing raw PCM via an AudioWorklet.
  * `open()` must be called from a user gesture (tap/click), especially on iOS.
- * The microphone stays open between recordings so the start of a word is not cut off.
+ * The microphone stays open until `close()` is called; callers close it after each take so playback is not
+ * degraded by the device's recording audio mode.
  */
 export class Recorder {
   private context?: AudioContext
