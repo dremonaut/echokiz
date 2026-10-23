@@ -26,6 +26,10 @@ describe('DEFAULT_PHRASES', () => {
     }
   })
 
+  it('is a broad everyday catalog', () => {
+    expect(DEFAULT_PHRASES.length).toBeGreaterThanOrEqual(400)
+  })
+
   it('keeps the IDs of phrases from earlier catalog versions', () => {
     const ids = new Set(DEFAULT_PHRASES.map((p) => p.id))
     for (const id of ['w-mama', 'w-wasser', 'w-ja', 's-ich-habe-hunger', 's-ich-bin-muede', 'w-katze']) {
